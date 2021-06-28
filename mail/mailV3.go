@@ -11,6 +11,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/mail"
+	"os"
 	"strings"
 	"time"
 
@@ -162,7 +163,7 @@ func GetWithKeyMap(info MailboxInfo, keyMap map[string]interface{}, markAsRead, 
 		}
 		emails = append(emails, resp.Email)
 	}
-
+	fmt.Fprintf(os.Stdout,"we get %d emails\n",len(emails))
 	return emails, nil
 }
 

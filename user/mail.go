@@ -8,3 +8,7 @@ import (
 func FindEmailContent(body []byte, reg *regexp.Regexp) (matchResult string, err error) {
 	return string(reg.Find(body)), nil
 }
+
+//func GetEffectiveTimeLineOfIssue(assignee,issueID string)string{
+//
+//}

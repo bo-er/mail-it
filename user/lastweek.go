@@ -2,7 +2,6 @@ package user
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/bo-er/mail-it/mail"
 	"regexp"
 )
@@ -15,7 +14,8 @@ func FilterByNameOfAssignee(body [][]byte,username string)bool{
 }
 
 func FilterByAssigneeAndIssueID(body [][]byte,username ,issueID string)bool{
-	return false
+	return (bytes.ContainsAny(body[0],"经办人: "+ username) || bytes.ContainsAny(body[0],"Assignee: "+ username)) &&
+		bytes.ContainsAny(body[0],"键值: "+ issueID)
 }
 
 // GetLastWeekWork gets your last week work on jira.
@@ -31,7 +31,6 @@ func GetLastWeekWork(info mail.MailboxInfo, filter emailBodyFilter, keyMap map[s
 	for index, r := range regexes {
 		regexps[index] = regexp.MustCompile(r)
 	}
-	fmt.Println("邮件数量", len(mails))
 	for _, mail := range mails {
 		body,_ := mail.VisibleText()
 		ok := filter(body)

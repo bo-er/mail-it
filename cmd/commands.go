@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-
 	"github.com/bo-er/mail-it/user"
 	"github.com/bo-er/mail-it/util"
 	"github.com/spf13/cobra"
@@ -18,7 +17,7 @@ var getLastWeekWorkCmd = &cobra.Command{
 		keyMap := map[string]interface{}{
 			"SINCE":  lastMonday.Format(dateFormat),
 			"BEFORE": lastSaturday.Format(dateFormat),
-			"HEADER":"DMP-7610",
+			"DMP-7610":nil,
 		}
 		projects, _ := user.GetLastWeekWork(mailboxInfo, func(body [][]byte) bool {
 			return user.FilterByNameOfAssignee(body,mailboxInfo.Username)
