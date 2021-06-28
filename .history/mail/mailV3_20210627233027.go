@@ -604,6 +604,7 @@ func parseBody(header mail.Header, body []byte) (html []byte, text []byte, isMul
 
 func parsePart(mediaType, charsetStr, encoding string, part []byte) (html, text []byte, err error) {
 	// deal with charset
+	fmt.Println("字符集是", charsetStr)
 	if strings.ToLower(charsetStr) == "iso-8859-1" {
 		var cr io.Reader
 		cr, err = charset.NewReader("latin1", bytes.NewReader(part))

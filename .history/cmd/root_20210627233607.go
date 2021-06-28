@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"regexp"
-	"strings"
 
 	"github.com/bo-er/mail-it/mail"
 	"github.com/bo-er/mail-it/util"
@@ -17,8 +15,9 @@ const (
 	dateFormat = "2006-01-02"
 )
 
-var projectReg = "DMP-[0-9]+"
-var contentReg = `-{3,}`
+var projectReg = []string{
+	"DMP-[1-9]+",
+}
 
 var (
 	configFile string
@@ -56,17 +55,11 @@ var (
 			if err != nil {
 				log.Panic(err)
 			}
-			// pr := regexp.MustCompile(projectReg)
-			cr := regexp.MustCompile(contentReg)
 			for _, mail := range mails {
 				fmt.Println("---------------------------------------------------")
-				c, _ := mail.VisibleText()
-				content := string(c[0])
-				// pv := pr.Find(c[0])
-				result := cr.Find(c[0])
-				begin := strings.Index(content, string(result))
-				end := strings.Index(content, ">")
-				fmt.Println(strings.Trim(content[begin:end], "-"))
+				fmt.Println(mail.InternalDate.Format(dateFormat))
+				// content, _ := mail.VisibleText()
+				// fmt.Println(string(content[0]))
 				fmt.Println("---------------------------------------------------")
 			}
 

@@ -65,8 +65,10 @@ var (
 				// pv := pr.Find(c[0])
 				result := cr.Find(c[0])
 				begin := strings.Index(content, string(result))
+				fmt.Println(string(result))
 				end := strings.Index(content, ">")
-				fmt.Println(strings.Trim(content[begin:end], "-"))
+				fmt.Println(content[begin:end])
+				fmt.Println(content)
 				fmt.Println("---------------------------------------------------")
 			}
 

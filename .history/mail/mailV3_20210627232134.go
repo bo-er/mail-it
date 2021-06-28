@@ -36,20 +36,19 @@ type MailboxInfo struct {
 	ReadOnly bool
 }
 
-// GetLastWeekWork gets your last week work on jira.
-// func GetLastWeekWork(mails []Email,regexes []string)([]string,error){
-// 	t := time.Now()
-// 	int(t.Weekday())
-// }
+func getYourLastWeekWork(mails []Email)([]string,error){
+
+}
+
 
 // ReorderByDate reorders your email by date
 // order key word takes 'desc' or 'incr', the first one is for ordering by newest to olders, the other is the opposite.
-// func ReorderByDate(mails []Email, order string) (orderedEmails []Email, err error) {
-// 	if order != "desc" && order != "incr"{
-// 		return mails,errors.New("order key word can only take 'desc' or 'incr'.")
-// 	}
-// 	if order == "desc"
-// }
+func ReorderByDate(mails []Email, order string) (orderedEmails []Email, err error) {
+	if order != "desc" && order != "incr"{
+		return mails,errors.New("order key word can only take 'desc' or 'incr'.")
+	}
+	if order == "desc"
+}
 
 // GetAll will pull all emails from the email folder and return them as a list.
 func GetAll(info MailboxInfo, markAsRead, delete bool) ([]Email, error) {
@@ -604,6 +603,7 @@ func parseBody(header mail.Header, body []byte) (html []byte, text []byte, isMul
 
 func parsePart(mediaType, charsetStr, encoding string, part []byte) (html, text []byte, err error) {
 	// deal with charset
+	fmt.Println("字符集是", charsetStr)
 	if strings.ToLower(charsetStr) == "iso-8859-1" {
 		var cr io.Reader
 		cr, err = charset.NewReader("latin1", bytes.NewReader(part))

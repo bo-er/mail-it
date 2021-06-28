@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"regexp"
-	"strings"
 
 	"github.com/bo-er/mail-it/mail"
 	"github.com/bo-er/mail-it/util"
@@ -64,9 +63,11 @@ var (
 				content := string(c[0])
 				// pv := pr.Find(c[0])
 				result := cr.Find(c[0])
-				begin := strings.Index(content, string(result))
-				end := strings.Index(content, ">")
-				fmt.Println(strings.Trim(content[begin:end], "-"))
+				begin := strings.Index(content, result)
+				fmt.Println(string(result))
+				// end := strings.Index(content, ">")
+				// fmt.Println(content[begin:end])
+				// fmt.Println(content)
 				fmt.Println("---------------------------------------------------")
 			}
 

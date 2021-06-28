@@ -36,21 +36,6 @@ type MailboxInfo struct {
 	ReadOnly bool
 }
 
-// GetLastWeekWork gets your last week work on jira.
-// func GetLastWeekWork(mails []Email,regexes []string)([]string,error){
-// 	t := time.Now()
-// 	int(t.Weekday())
-// }
-
-// ReorderByDate reorders your email by date
-// order key word takes 'desc' or 'incr', the first one is for ordering by newest to olders, the other is the opposite.
-// func ReorderByDate(mails []Email, order string) (orderedEmails []Email, err error) {
-// 	if order != "desc" && order != "incr"{
-// 		return mails,errors.New("order key word can only take 'desc' or 'incr'.")
-// 	}
-// 	if order == "desc"
-// }
-
 // GetAll will pull all emails from the email folder and return them as a list.
 func GetAll(info MailboxInfo, markAsRead, delete bool) ([]Email, error) {
 	// call chan, put 'em in a list, return
@@ -518,13 +503,14 @@ func NewEmail(msgFields imap.FieldMap) (Email, error) {
 		return email, fmt.Errorf("unable to read header: %s", err)
 	}
 
-	from, err := mail.ParseAddress("Unkown <unknown@example.com>")
+	from, err := mail.ParseAddress("Alice <alice@example.com>")
 	if err != nil {
-		return email, fmt.Errorf("unable to parse from address: %s", err)
+		return email, fmt.Errorf("@@@unable to parse from address: %s", err)
 	}
 
 	to, err := mail.ParseAddressList(msg.Header.Get("To"))
 	if err != nil {
+		fmt.Println("发生了错误哦")
 		to = []*mail.Address{}
 	}
 
@@ -604,6 +590,7 @@ func parseBody(header mail.Header, body []byte) (html []byte, text []byte, isMul
 
 func parsePart(mediaType, charsetStr, encoding string, part []byte) (html, text []byte, err error) {
 	// deal with charset
+	fmt.Println("字符集是", charsetStr)
 	if strings.ToLower(charsetStr) == "iso-8859-1" {
 		var cr io.Reader
 		cr, err = charset.NewReader("latin1", bytes.NewReader(part))

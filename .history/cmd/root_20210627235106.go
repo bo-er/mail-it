@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"regexp"
-	"strings"
 
 	"github.com/bo-er/mail-it/mail"
 	"github.com/bo-er/mail-it/util"
@@ -18,7 +17,7 @@ const (
 )
 
 var projectReg = "DMP-[0-9]+"
-var contentReg = `-{3,}`
+var contentReg = "-----------------.*>"
 
 var (
 	configFile string
@@ -56,17 +55,15 @@ var (
 			if err != nil {
 				log.Panic(err)
 			}
-			// pr := regexp.MustCompile(projectReg)
+			pr := regexp.MustCompile(projectReg)
 			cr := regexp.MustCompile(contentReg)
 			for _, mail := range mails {
 				fmt.Println("---------------------------------------------------")
-				c, _ := mail.VisibleText()
-				content := string(c[0])
-				// pv := pr.Find(c[0])
-				result := cr.Find(c[0])
-				begin := strings.Index(content, string(result))
-				end := strings.Index(content, ">")
-				fmt.Println(strings.Trim(content[begin:end], "-"))
+				content, _ := mail.VisibleText()
+				v := pr.Find(content[0])
+				fmt.Println(string(v))
+				cr.Find(content[0])
+				// fmt.Println(string(content[0]))
 				fmt.Println("---------------------------------------------------")
 			}
 

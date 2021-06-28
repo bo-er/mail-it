@@ -5,20 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"regexp"
-	"strings"
 
 	"github.com/bo-er/mail-it/mail"
-	"github.com/bo-er/mail-it/util"
 	"github.com/spf13/cobra"
 )
-
-const (
-	dateFormat = "2006-01-02"
-)
-
-var projectReg = "DMP-[0-9]+"
-var contentReg = `-{3,}`
 
 var (
 	configFile string
@@ -51,25 +41,16 @@ var (
 				}
 				mailboxInfo.User = username
 			}
-			fmt.Println(util.GetFirstDateOfWeek())
 			mails, err := mail.GetUnread(mailboxInfo, false, false)
 			if err != nil {
 				log.Panic(err)
 			}
-			// pr := regexp.MustCompile(projectReg)
-			cr := regexp.MustCompile(contentReg)
 			for _, mail := range mails {
 				fmt.Println("---------------------------------------------------")
-				c, _ := mail.VisibleText()
-				content := string(c[0])
-				// pv := pr.Find(c[0])
-				result := cr.Find(c[0])
-				begin := strings.Index(content, string(result))
-				end := strings.Index(content, ">")
-				fmt.Println(strings.Trim(content[begin:end], "-"))
+				content, _ := mail.VisibleText()
+				fmt.Println(string(content[0]))
 				fmt.Println("---------------------------------------------------")
 			}
-
 			// from := netMail.Address{"", username}
 			// sendto := netMail.Address{"", to}
 			// message := mail.Setup(from.Address, sendto.Address)
