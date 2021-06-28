@@ -1,6 +1,7 @@
 package user
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/bo-er/mail-it/mail"
 	"regexp"
@@ -8,6 +9,14 @@ import (
 
 // emailBodyFilter filters an email's body
 type emailBodyFilter func([][]byte) bool
+
+func FilterByNameOfAssignee(body [][]byte,username string)bool{
+	return bytes.ContainsAny(body[0],"经办人: "+ username) || bytes.ContainsAny(body[0],"Assignee: "+ username)
+}
+
+func FilterByAssigneeAndIssueID(body [][]byte,username ,issueID string)bool{
+	return false
+}
 
 // GetLastWeekWork gets your last week work on jira.
 func GetLastWeekWork(info mail.MailboxInfo, filter emailBodyFilter, keyMap map[string]interface{}, regexes []string) ([]string, error) {

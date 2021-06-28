@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/bo-er/mail-it/user"
@@ -12,20 +11,31 @@ import (
 var getLastWeekWorkCmd = &cobra.Command{
 	Use:   "lw",
 	Short: "Gets your last week's work on jira",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
 		lastMonday := util.GetFirstDayOfLastWeek()
 		lastSaturday := util.GetSaturdayOfLastWeek()
 		keyMap := map[string]interface{}{
 			"SINCE":  lastMonday.Format(dateFormat),
 			"BEFORE": lastSaturday.Format(dateFormat),
+			"HEADER":"DMP-7610",
 		}
 		projects, _ := user.GetLastWeekWork(mailboxInfo, func(body [][]byte) bool {
-			fmt.Println(len(body))
-			return bytes.ContainsAny(body[0],"经办人: "+mailboxInfo.Username)
+			return user.FilterByNameOfAssignee(body,mailboxInfo.Username)
 
 		}, keyMap, []string{projectReg})
 		fmt.Println(projects)
-		return nil
+
+	},
+}
+
+
+var issueID string
+var getEffectiveTimelineCmd = &cobra.Command{
+	Use:   "et",
+	Short: "Print the Effective timeline of an issue",
+	Long:  `Print the Effective timeline of an issue`,
+	Run: func(cmd *cobra.Command, args []string) {
+
 	},
 }

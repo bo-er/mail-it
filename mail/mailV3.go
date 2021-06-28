@@ -39,6 +39,43 @@ type MailboxInfo struct {
 	Username string
 }
 
+// Email is a simplified email struct containing the basic pieces of an email. If you want more info,
+// it should all be available within the Message attribute.
+type Email struct {
+	Message *mail.Message
+
+	From         *mail.Address   `json:"from"`
+	To           []*mail.Address `json:"to"`
+	InternalDate time.Time       `json:"internal_date"`
+	Precedence   string          `json:"precedence"`
+	Subject      string          `json:"subject"`
+	HTML         []byte          `json:"html"`
+	Text         []byte          `json:"text"`
+	IsMultiPart  bool            `json:"is_multipart"`
+	UID          uint32          `json:"uid"`
+}
+
+var (
+	styleTag       = []byte("style")
+	scriptTag      = []byte("script")
+	headTag        = []byte("head")
+	metaTag        = []byte("meta")
+	doctypeTag     = []byte("doctype")
+	shapeTag       = []byte("v:shape")
+	imageDataTag   = []byte("v:imagedata")
+	commentTag     = []byte("!")
+	nonVisibleTags = [][]byte{
+		styleTag,
+		scriptTag,
+		headTag,
+		metaTag,
+		doctypeTag,
+		shapeTag,
+		imageDataTag,
+		commentTag,
+	}
+)
+
 // ReorderByDate reorders your email by date
 // order key word takes 'desc' or 'incr', the first one is for ordering by newest to olders, the other is the opposite.
 // func ReorderByDate(mails []Email, order string) (orderedEmails []Email, err error) {
@@ -213,42 +250,7 @@ func ValidateMailboxInfo(info MailboxInfo) error {
 	return err
 }
 
-// Email is a simplified email struct containing the basic pieces of an email. If you want more info,
-// it should all be available within the Message attribute.
-type Email struct {
-	Message *mail.Message
 
-	From         *mail.Address   `json:"from"`
-	To           []*mail.Address `json:"to"`
-	InternalDate time.Time       `json:"internal_date"`
-	Precedence   string          `json:"precedence"`
-	Subject      string          `json:"subject"`
-	HTML         []byte          `json:"html"`
-	Text         []byte          `json:"text"`
-	IsMultiPart  bool            `json:"is_multipart"`
-	UID          uint32          `json:"uid"`
-}
-
-var (
-	styleTag       = []byte("style")
-	scriptTag      = []byte("script")
-	headTag        = []byte("head")
-	metaTag        = []byte("meta")
-	doctypeTag     = []byte("doctype")
-	shapeTag       = []byte("v:shape")
-	imageDataTag   = []byte("v:imagedata")
-	commentTag     = []byte("!")
-	nonVisibleTags = [][]byte{
-		styleTag,
-		scriptTag,
-		headTag,
-		metaTag,
-		doctypeTag,
-		shapeTag,
-		imageDataTag,
-		commentTag,
-	}
-)
 
 func VisibleText(body io.Reader) ([][]byte, error) {
 	var (

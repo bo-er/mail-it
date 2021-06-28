@@ -84,7 +84,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "password of a user")
 	rootCmd.PersistentFlags().StringVarP(&to, "sendto", "t", "", "the target email address")
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config file path", "c", "", "the path of the config file")
-	rootCmd.AddCommand(getLastWeekWorkCmd)
+	getEffectiveTimelineCmd.Flags().StringVarP(&issueID, "issueID", "i", "", "The issue's ID, e.g., DMP-7566")
+	rootCmd.AddCommand(getLastWeekWorkCmd,getEffectiveTimelineCmd)
 }
 
 func initConfig() {
