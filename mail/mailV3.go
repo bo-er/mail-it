@@ -23,6 +23,8 @@ import (
 	"golang.org/x/net/html"
 )
 
+const dateFormat = "02-Jan-2006"
+
 // MailboxInfo holds onto the credentials and other information
 // needed for connecting to an IMAP server.
 type MailboxInfo struct {
@@ -34,13 +36,8 @@ type MailboxInfo struct {
 	Folder             string
 	// Read only mode, false (original logic) if not initialized
 	ReadOnly bool
+	Username string
 }
-
-// GetLastWeekWork gets your last week work on jira.
-// func GetLastWeekWork(mails []Email,regexes []string)([]string,error){
-// 	t := time.Now()
-// 	int(t.Weekday())
-// }
 
 // ReorderByDate reorders your email by date
 // order key word takes 'desc' or 'incr', the first one is for ordering by newest to olders, the other is the opposite.
@@ -114,6 +111,24 @@ func GenerateUnread(info MailboxInfo, markAsRead, delete bool) (chan Response, e
 	return generateMail(info, "UNSEEN", nil, markAsRead, delete)
 }
 
+// GetWithKeyMap will pull all emails that matches the given keymap.
+func GetWithKeyMap(info MailboxInfo, keyMap map[string]interface{}, markAsRead, delete bool) ([]Email, error) {
+	var emails []Email
+	responses, err := GenerateWithKeyMap(info, keyMap, markAsRead, delete)
+	if err != nil {
+		return emails, err
+	}
+
+	for resp := range responses {
+		if resp.Err != nil {
+			return emails, resp.Err
+		}
+		emails = append(emails, resp.Email)
+	}
+
+	return emails, nil
+}
+
 // GetSince will pull all emails that have an internal date after the given time.
 func GetSince(info MailboxInfo, since time.Time, markAsRead, delete bool) ([]Email, error) {
 	var emails []Email
@@ -135,7 +150,15 @@ func GetSince(info MailboxInfo, since time.Time, markAsRead, delete bool) ([]Ema
 // GenerateSince will find all emails that have an internal date after the given time and pass them along to the
 // responses channel.
 func GenerateSince(info MailboxInfo, since time.Time, markAsRead, delete bool) (chan Response, error) {
-	return generateMail(info, "", &since, markAsRead, delete)
+	keyM := map[string]interface{}{
+		"SINCE": since.Format(dateFormat),
+	}
+	return generateMail(info, "", keyM, markAsRead, delete)
+}
+
+// GenerateWithKeyMap will find all emails that matches the given keyMap
+func GenerateWithKeyMap(info MailboxInfo, keyMap map[string]interface{}, markAsRead, delete bool) (chan Response, error) {
+	return generateMail(info, "", keyMap, markAsRead, delete)
 }
 
 // MarkAsUnread will set the UNSEEN flag on a supplied slice of UIDs
@@ -335,20 +358,18 @@ func newIMAPClient(info MailboxInfo) (*imap.Client, error) {
 	return client, nil
 }
 
-const dateFormat = "02-Jan-2006"
-
 // findEmails will run a find the UIDs of any emails that match the search.:
-func findEmails(client *imap.Client, search string, since *time.Time) (*imap.Command, error) {
+func findEmails(client *imap.Client, search string, keyMap map[string]interface{}) (*imap.Command, error) {
+
 	var specs []imap.Field
 	if len(search) > 0 {
 		specs = append(specs, search)
 	}
-
-	if since != nil {
-		sinceStr := since.Format(dateFormat)
-		specs = append(specs, "SINCE", sinceStr)
+	for k, v := range keyMap {
+		if _, ok := allowedKeys[k]; ok {
+			specs = append(specs, k, v)
+		}
 	}
-
 	// get headers and UID for UnSeen message in src inbox...
 	cmd, err := imap.Wait(client.UIDSearch(specs...))
 	if err != nil {
@@ -359,7 +380,7 @@ func findEmails(client *imap.Client, search string, since *time.Time) (*imap.Com
 
 var GenerateBufferSize = 100
 
-func generateMail(info MailboxInfo, search string, since *time.Time, markAsRead, delete bool) (chan Response, error) {
+func generateMail(info MailboxInfo, search string, keyMap map[string]interface{}, markAsRead, delete bool) (chan Response, error) {
 	responses := make(chan Response, GenerateBufferSize)
 	client, err := newIMAPClient(info)
 	if err != nil {
@@ -376,7 +397,7 @@ func generateMail(info MailboxInfo, search string, since *time.Time, markAsRead,
 
 		var cmd *imap.Command
 		// find all the UIDs
-		cmd, err = findEmails(client, search, since)
+		cmd, err = findEmails(client, search, keyMap)
 		if err != nil {
 			responses <- Response{Err: err}
 			return
