@@ -11,8 +11,8 @@ func Setup(from, to string) string {
 	headers := make(map[string]string)
 	headers["From"] = from
 	headers["To"] = to
-	headers["Subject"] = "Hello"
-	body := "Hello World"
+	headers["Subject"] = "Hello!"
+	body := "来自于email-it的消息: "
 	message := ""
 	for k, v := range headers {
 		message += fmt.Sprintf("%s: %s\r\n", k, v)

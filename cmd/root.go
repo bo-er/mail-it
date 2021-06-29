@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -20,7 +19,6 @@ var mailboxInfo mail.MailboxInfo
 
 var (
 	configFile string
-	username   string
 	password   string
 	to         string
 	rootCmd    = &cobra.Command{
@@ -28,7 +26,6 @@ var (
 		Short: "A command for starting your email service",
 		Long:  `This command is used for Starting your email service.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("HELLO WORLD")
 			// start := time.Date(2021, 06, 28, 1, 0, 0, 0, time.UTC)
 			// result, _ := user.GetLastWeekWork(mailboxInfo, start, []string{projectReg})
 			// fmt.Println(result)
@@ -51,24 +48,9 @@ var (
 			// 	fmt.Println("---------------------------------------------------")
 			// }
 
-			// from := netMail.Address{"", username}
-			// sendto := netMail.Address{"", to}
-			// message := mail.Setup(from.Address, sendto.Address)
-			// client, err := mail.Connect(username, password)
-			// if err != nil {
-			// 	log.Panic(err)
-			// }
-			// err = mail.Send(from.Address, sendto.Address, client, []byte(message))
-			// if err != nil {
-			// 	log.Panic(err)
-			// }
 		},
 	}
 )
-
-func GetUsername() string {
-	return username
-}
 
 func GetPassword() string {
 	return password
@@ -80,12 +62,16 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "", "name of mailbox owner")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "password of a user")
-	rootCmd.PersistentFlags().StringVarP(&to, "sendto", "t", "", "the target email address")
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config file path", "c", "", "the path of the config file")
 	getEffectiveTimelineCmd.Flags().StringVarP(&issueID, "issueID", "i", "", "The issue's ID, e.g., DMP-7566")
-	rootCmd.AddCommand(getLastWeekWorkCmd, getEffectiveTimelineCmd)
+	rootCmd.AddCommand(getLastWeekWorkCmd)
+	rootCmd.AddCommand(getEffectiveTimelineCmd)
+	sendEmailCmd.Flags().StringVarP(&emailBody, "emailBody", "b", "", "This is the email body")
+	sendEmailCmd.PersistentFlags().StringVarP(&to, "sendto", "t", "", "the target email address")
+	rootCmd.AddCommand(sendEmailCmd)
+	rootCmd.AddCommand(testCmd)
+
 }
 
 func initConfig() {
@@ -105,9 +91,6 @@ func initConfig() {
 		mailboxInfo.Pwd = password
 	}
 	if mailboxInfo.User == "" {
-		if username == "" {
-			log.Panic("must provide a username")
-		}
-		mailboxInfo.User = username
+		log.Panic("must provide a username")
 	}
 }

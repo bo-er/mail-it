@@ -5,14 +5,17 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/bo-er/mail-it/mail"
 )
 
+var chineseReg = regexp.MustCompile("[^\u4e00-\u9fa5]")
+
 type MailBrief struct {
-	Commenter string
+	Operator  string
 	IssueID   string
 	Link      string
 	Project   string
@@ -128,7 +131,7 @@ func setReadBriefBodyState(newline, briefBody string, state *bool) bool {
 }
 
 func (mb *MailBrief) isComplete() bool {
-	return mb.Commenter != "" &&
+	return mb.Operator != "" &&
 		mb.IssueID != "" &&
 		mb.Link != "" &&
 		mb.Project != "" &&
@@ -138,6 +141,203 @@ func (mb *MailBrief) isComplete() bool {
 		mb.Tag != "" &&
 		mb.Version != "" &&
 		mb.BriefBody != ""
+}
+
+func GenerateBriefEmail(mb *MailBrief, mailBody []byte, opts ...Extract) *MailBrief {
+	for _, opt := range opts {
+		opt(mb, mailBody)
+	}
+	return mb
+}
+
+// Extract a type of function that extracts information from content
+// and set that piece of information into MailBrief
+type Extract func(mb *MailBrief, mailBody []byte) *MailBrief
+
+func ExtractOperator() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `]([\s\S]*)-+`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we don't find a operator\n")
+			return mb
+		}
+		trimedMatch := bytes.TrimSpace(match)
+
+		mb.Operator = extractChienes(chineseReg, match[:bytes.Index(trimedMatch, []byte{' '})])
+		return mb
+	}
+}
+
+func ExtractIssueIDAndProject() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)键值:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an issueID\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		hyphenIndex := bytes.Index(target, []byte{'-'})
+		mb.IssueID = string(target[whiteSpaceIndex+1:])
+		mb.Project = string(target[whiteSpaceIndex+1 : hyphenIndex])
+		return mb
+	}
+
+}
+
+func ExtractLink() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)网址:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an web address\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		mb.Link = string(target[whiteSpaceIndex+1:])
+		return mb
+	}
+
+}
+
+func ExtractAssignee() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)经办人:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an assignee\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		mb.Assignee = string(target[whiteSpaceIndex+1:])
+		return mb
+	}
+
+}
+
+func ExtractVersion() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)修复:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an version\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		mb.Version = string(target[whiteSpaceIndex+1:])
+		return mb
+	}
+
+}
+
+func ExtractReporter() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)报告人:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an reporter\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		mb.Reporter = string(target[whiteSpaceIndex+1:])
+		return mb
+	}
+
+}
+
+func ExtractIssueType() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)问题类型:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an issue type\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		mb.IssueType = string(target[whiteSpaceIndex+1:])
+		return mb
+	}
+
+}
+
+func ExtractTag() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `>(\s+)标签:\s.*\s`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an version\n")
+			return mb
+		}
+		target := trimBytesPrefix(match)
+		whiteSpaceIndex := bytes.Index(target, []byte{' '})
+		mb.Tag = string(target[whiteSpaceIndex+1:])
+		return mb
+	}
+
+}
+
+func ExtractEffectiveBody() Extract {
+	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		regexString := `(---)+([\s\S]*)>\s(---)+`
+		compiledRegxp := regexp.MustCompile(regexString)
+		match := compiledRegxp.Find(mailBody)
+		if match == nil {
+			fmt.Fprintf(os.Stderr, "we didn't find an effective body\n")
+			return mb
+		}
+
+		mb.BriefBody = string(trimLineWithGreaterPrefix(match))
+		return mb
+	}
+}
+
+func extractChienes(r *regexp.Regexp, content []byte) string {
+	return r.ReplaceAllString(string(content), "")
+}
+
+func trimBytesPrefix(bs []byte) []byte {
+	return bytes.TrimSpace(bytes.Trim(bs, ">- "))
+}
+
+func trimLineWithGreaterPrefix(bs []byte) []byte {
+	trimedBytes := trimBytesPrefix(bs)
+	firstGreaterSignIndex := bytes.Index(trimedBytes, []byte{'>'})
+	return bytes.TrimSpace(trimedBytes[:firstGreaterSignIndex])
+}
+
+func ParseEmailV2(m mail.Email) (mailBrief *MailBrief, err error) {
+	b := &MailBrief{}
+	bsArray, err := m.VisibleText()
+	if err != nil {
+		return b, err
+	}
+	emailBody := bsArray[0]
+
+	return GenerateBriefEmail(b, emailBody,
+		ExtractAssignee(),
+		ExtractIssueIDAndProject(),
+		ExtractIssueType(),
+		ExtractLink(),
+		ExtractOperator(),
+		ExtractTag(),
+		ExtractReporter(),
+		ExtractEffectiveBody()), nil
+
 }
 
 //func GetEffectiveTimeLineOfIssue(assignee,issueID string)string{

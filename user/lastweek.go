@@ -2,20 +2,21 @@ package user
 
 import (
 	"bytes"
-	"github.com/bo-er/mail-it/mail"
 	"regexp"
+
+	"github.com/bo-er/mail-it/mail"
 )
 
 // emailBodyFilter filters an email's body
 type emailBodyFilter func([][]byte) bool
 
-func FilterByNameOfAssignee(body [][]byte,username string)bool{
-	return bytes.ContainsAny(body[0],"经办人: "+ username) || bytes.ContainsAny(body[0],"Assignee: "+ username)
+func FilterByNameOfAssignee(body [][]byte, username string) bool {
+	return bytes.ContainsAny(body[0], "经办人: "+username) || bytes.ContainsAny(body[0], "Assignee: "+username)
 }
 
-func FilterByAssigneeAndIssueID(body [][]byte,username ,issueID string)bool{
-	return (bytes.ContainsAny(body[0],"经办人: "+ username) || bytes.ContainsAny(body[0],"Assignee: "+ username)) &&
-		bytes.ContainsAny(body[0],"键值: "+ issueID)
+func FilterByAssigneeAndIssueID(body [][]byte, username, issueID string) bool {
+	return (bytes.ContainsAny(body[0], "经办人: "+username) || bytes.ContainsAny(body[0], "Assignee: "+username)) &&
+		bytes.ContainsAny(body[0], "键值: "+issueID)
 }
 
 // GetLastWeekWork gets your last week work on jira.
@@ -32,7 +33,7 @@ func GetLastWeekWork(info mail.MailboxInfo, filter emailBodyFilter, keyMap map[s
 		regexps[index] = regexp.MustCompile(r)
 	}
 	for _, mail := range mails {
-		body,_ := mail.VisibleText()
+		body, _ := mail.VisibleText()
 		ok := filter(body)
 		if !ok {
 			continue
@@ -51,5 +52,3 @@ func GetLastWeekWork(info mail.MailboxInfo, filter emailBodyFilter, keyMap map[s
 	}
 	return lastweekProjects, nil
 }
-
-

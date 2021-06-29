@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"log"
+	netMail "net/mail"
 	"sync"
 
 	"github.com/bo-er/mail-it/mail"
@@ -11,7 +13,7 @@ import (
 )
 
 var getLastWeekWorkCmd = &cobra.Command{
-	Use:   "lw",
+	Use:   "lastweek",
 	Short: "Gets your last week's work on jira",
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
@@ -33,29 +35,27 @@ var getLastWeekWorkCmd = &cobra.Command{
 
 var issueID string
 var getEffectiveTimelineCmd = &cobra.Command{
-	Use:   "et",
+	Use:   "etimeline",
 	Short: "Print the Effective timeline of an issue",
 	Long:  `Print the Effective timeline of an issue`,
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
-		fmt.Println("开始获取邮件")
 		lastMonday := util.GetFirstDayOfLastWeek()
 		lastSaturday := util.GetSaturdayOfLastWeek()
 		keyMap := map[string]interface{}{
 			"SINCE":    lastMonday.Format(dateFormat),
 			"BEFORE":   lastSaturday.Format(dateFormat),
-			"DMP-7610": nil,
 		}
 
 		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
 		fmt.Println(len(emails))
 		var wg sync.WaitGroup
-		var briefEmails []user.MailBrief
+		var briefEmails []*user.MailBrief
 		wg.Add(len(emails))
 		for _, email := range emails {
 			e := email
 			go func() {
-				briefEmail, err := user.ParseEmail(e)
+				briefEmail, err := user.ParseEmailV2(e)
 				fmt.Printf("%#v", briefEmail)
 				if err != nil {
 					fmt.Println(err)
@@ -66,5 +66,35 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		}
 		wg.Wait()
 		fmt.Println(briefEmails[0])
+	},
+}
+
+var emailBody string
+
+var sendEmailCmd = &cobra.Command{
+	Use:   "send",
+	Short: "Send your email to someone",
+	Run: func(cmd *cobra.Command, args []string) {
+		initConfig()
+		from := netMail.Address{Name: "", Address: mailboxInfo.User}
+		sendto := netMail.Address{Name: "", Address: to}
+		message := mail.Setup(from.Address, sendto.Address)
+		message += emailBody
+		client, err := mail.Connect(mailboxInfo.User, password)
+		if err != nil {
+			log.Panic(err)
+		}
+		err = mail.Send(from.Address, sendto.Address, client, []byte(message))
+		if err != nil {
+			log.Panic(err)
+		}
+	},
+}
+
+var testCmd = &cobra.Command{
+	Use:   "test",
+	Short: "This is the command used for testing",
+	Run: func(cmd *cobra.Command, args []string) {
+
 	},
 }
