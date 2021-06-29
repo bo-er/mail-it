@@ -5,6 +5,7 @@ import (
 	"log"
 	netMail "net/mail"
 	"sync"
+	"time"
 
 	"github.com/bo-er/mail-it/mail"
 	"github.com/bo-er/mail-it/user"
@@ -42,34 +43,52 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		initConfig()
 		lastMonday := util.GetFirstDayOfLastWeek()
 		lastSaturday := util.GetSaturdayOfLastWeek()
-		keyMap := map[string]interface{}{
-			"SINCE":  lastMonday.Format(dateFormat),
-			"BEFORE": lastSaturday.Format(dateFormat),
-		}
+		// keyMap := map[string]interface{}{
+		// 	"SINCE":  lastMonday.Format(dateFormat),
+		// 	"BEFORE": lastSaturday.Format(dateFormat),
+		// }
 
-		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
-		fmt.Println(len(emails))
+		emails, _ := mail.GetWithKeyMap(mailboxInfo, nil, false, false)
 		var wg sync.WaitGroup
 		var briefEmails []*user.MailBrief
 		wg.Add(len(emails))
 		for _, email := range emails {
 			e := email
 			go func() {
-				briefEmail, err := user.ParseEmailV2(e)
+				briefEmail, err := user.ParseEmail(e)
 				if err != nil {
 					fmt.Println(err)
 				}
-				briefEmails = append(briefEmails, briefEmail)
+				if briefEmail.MailType == user.Jira {
+					briefEmails = append(briefEmails, briefEmail)
+				}
 				wg.Done()
 			}()
 		}
 		wg.Wait()
-		for i, be := range briefEmails {
-			fmt.Printf("-------------------------------第%d封,共%d封---------------------------------\n", i, len(emails))
-			fmt.Printf("%#v\n", be)
+		lastWeekWorks := map[string]string{}
+		for _, bm := range briefEmails {
+			if _, exists := lastWeekWorks[bm.IssueID]; exists {
+				continue
+			}
+			if bm.FilterBriefMail(func(m *user.MailBrief) bool {
+				// 判断是自己的任务
+				if m.Assignee != mailboxInfo.Username {
+					return false
+				}
+				local, _ := time.LoadLocation("Local")
+				receiveTime, _ := time.ParseInLocation(user.MailBriefTimeFormat, m.Time, local)
+				return receiveTime.After(lastMonday) && receiveTime.Before(lastSaturday)
+			}) {
+				lastWeekWorks[bm.IssueID] = bm.Link
+			}
 
 		}
-		fmt.Println("--------------------------------------------------------------------")
+		counter := 1
+		for _, link := range lastWeekWorks {
+			fmt.Printf("%d.%s\n", counter, link)
+			counter++
+		}
 	},
 }
 
@@ -99,9 +118,16 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "This is the command used for testing",
 	Run: func(cmd *cobra.Command, args []string) {
-		c := ``
-		b := &user.MailBrief{}
-		op := user.ExtractOperator()
-		fmt.Printf("%#v", op(b, []byte(c)))
+		initConfig()
+		lastMonday := util.GetFirstDayOfLastWeek()
+		lastSaturday := util.GetSaturdayOfLastWeek()
+		keyMap := map[string]interface{}{
+			// "SINCE":  lastMonday.Format(dateFormat),
+			"BEFORE": lastSaturday.Format(dateFormat),
+		}
+		fmt.Printf("SINCE: %s, BEFORE: %s\n", lastMonday.Format(dateFormat), lastSaturday.Format(dateFormat))
+		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
+		fmt.Printf("总共的邮件数量:%d\n", len(emails))
+
 	},
 }

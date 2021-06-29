@@ -1,10 +1,8 @@
 package user
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -25,6 +23,10 @@ type MailBrief struct {
 	Tag       string
 	Version   string
 	BriefBody string
+	Time      string
+	//MailType 邮件的类型 "JIRA"表示来自jira, "Slack"表示来自slack的消息, "Confluence"表示来自confluence上的文档变更,"GitLab"表示来自gitlab
+	MailType string
+	UID      uint32
 }
 
 // FindEmailContent finds a content from an email body with given regexp
@@ -32,130 +34,30 @@ func FindEmailContent(body []byte, reg *regexp.Regexp) (matchResult string, err 
 	return string(reg.Find(body)), nil
 }
 
-func ParseEmail(m mail.Email) (mailBrief MailBrief, err error) {
-	contents, err := m.VisibleText()
+func GenerateBriefEmail(m mail.Email, opts ...Extract) (*MailBrief, error) {
+	b := &MailBrief{}
+	bsArray, err := m.VisibleText()
 	if err != nil {
-		return mailBrief, err
+		return b, err
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(contents[0]))
-	var briefBody string
-	var startReadingBriefBody bool
-	fmt.Println(scanner.Text())
-	for scanner.Scan() {
-		if mailBrief.isComplete() {
-			return
-		}
-		newline := scanner.Text()
-		fmt.Println("NEWLINEIS", newline)
-		if newline == "" {
-			continue
-		}
-		stateChanged := setReadBriefBodyState(newline, briefBody, &startReadingBriefBody)
-		if stateChanged {
-			continue
-		}
-		if startReadingBriefBody {
-			briefBody += newline
-			continue
-		}
-
-		trimedLine := strings.TrimSpace(strings.TrimLeft(newline, ">"))
-		fmt.Println("TRIMED", trimedLine)
-		if mailBrief.IssueID == "" {
-			if index := strings.Index(trimedLine, "键值:"); index != -1 {
-				mailBrief.IssueID = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.Link == "" {
-			if index := strings.Index(trimedLine, "网址:"); index != -1 {
-				mailBrief.Link = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.Project == "" {
-			if index := strings.Index(trimedLine, "项目:"); index != -1 {
-				mailBrief.Project = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.IssueType == "" {
-			if index := strings.Index(trimedLine, "问题类型:"); index != -1 {
-				mailBrief.IssueType = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.Reporter == "" {
-			if index := strings.Index(trimedLine, "报告人:"); index != -1 {
-				mailBrief.Reporter = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.Assignee == "" {
-			if index := strings.Index(trimedLine, "经办人:"); index != -1 {
-				mailBrief.Assignee = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.Tag == "" {
-			if index := strings.Index(trimedLine, "标签:"); index != -1 {
-				mailBrief.Tag = trimedLine[index:]
-				continue
-			}
-		}
-		if mailBrief.Version == "" {
-			if index := strings.Index(trimedLine, "修复:"); index != -1 {
-				mailBrief.Version = trimedLine[index:]
-				continue
-			}
-		}
-
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
-	return
-}
-
-func setReadBriefBodyState(newline, briefBody string, state *bool) bool {
-	if !*state && briefBody == "" &&
-		strings.HasSuffix(newline, "--") && strings.HasPrefix(newline, "--") {
-		*state = true
-		return true
-	}
-	if *state && briefBody != "" && strings.HasPrefix(newline, ">") {
-		*state = false
-		return true
-	}
-	return false
-}
-
-func (mb *MailBrief) isComplete() bool {
-	return mb.Operator != "" &&
-		mb.IssueID != "" &&
-		mb.Link != "" &&
-		mb.Project != "" &&
-		mb.IssueType != "" &&
-		mb.Assignee != "" &&
-		mb.Reporter != "" &&
-		mb.Tag != "" &&
-		mb.Version != "" &&
-		mb.BriefBody != ""
-}
-
-func GenerateBriefEmail(mb *MailBrief, mailBody []byte, opts ...Extract) *MailBrief {
+	mailBody := bsArray[0]
+	ExtractEmailUsefulInfo(&m, b)
 	for _, opt := range opts {
-		opt(mb, mailBody)
+		opt(b, mailBody)
 	}
-	return mb
+	return b, nil
 }
 
 // Extract a type of function that extracts information from content
 // and set that piece of information into MailBrief
+// It's used only for parsing jira emails!
 type Extract func(mb *MailBrief, mailBody []byte) *MailBrief
 
 func ExtractOperator() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `]([\s\S]*)-+`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -172,6 +74,9 @@ func ExtractOperator() Extract {
 
 func ExtractIssueIDAndProject() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)键值:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -191,6 +96,9 @@ func ExtractIssueIDAndProject() Extract {
 
 func ExtractLink() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)网址:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -208,6 +116,9 @@ func ExtractLink() Extract {
 
 func ExtractAssignee() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)经办人:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -225,6 +136,9 @@ func ExtractAssignee() Extract {
 
 func ExtractVersion() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)修复:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -242,6 +156,9 @@ func ExtractVersion() Extract {
 
 func ExtractReporter() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)报告人:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -259,6 +176,9 @@ func ExtractReporter() Extract {
 
 func ExtractIssueType() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)问题类型:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -276,11 +196,14 @@ func ExtractIssueType() Extract {
 
 func ExtractTag() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `>(\s+)标签:\s.*\s`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an version\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an tag\n")
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -293,6 +216,9 @@ func ExtractTag() Extract {
 
 func ExtractEffectiveBody() Extract {
 	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+		if mb.MailType != Jira {
+			return mb
+		}
 		regexString := `(---)+([\s\S]*)>\s(---)+`
 		compiledRegxp := regexp.MustCompile(regexString)
 		match := compiledRegxp.Find(mailBody)
@@ -320,15 +246,8 @@ func trimLineWithGreaterPrefix(bs []byte) []byte {
 	return bytes.TrimSpace(trimedBytes[:firstGreaterSignIndex])
 }
 
-func ParseEmailV2(m mail.Email) (mailBrief *MailBrief, err error) {
-	b := &MailBrief{}
-	bsArray, err := m.VisibleText()
-	if err != nil {
-		return b, err
-	}
-	emailBody := bsArray[0]
-
-	return GenerateBriefEmail(b, emailBody,
+func ParseEmail(m mail.Email) (mailBrief *MailBrief, err error) {
+	return GenerateBriefEmail(m,
 		ExtractAssignee(),
 		ExtractIssueIDAndProject(),
 		ExtractIssueType(),
@@ -336,10 +255,52 @@ func ParseEmailV2(m mail.Email) (mailBrief *MailBrief, err error) {
 		ExtractOperator(),
 		ExtractTag(),
 		ExtractReporter(),
-		ExtractEffectiveBody()), nil
+		ExtractEffectiveBody())
 
 }
 
-//func GetEffectiveTimeLineOfIssue(assignee,issueID string)string{
-//
-//}
+const JIRA_ADDRESS = "rdreport@actionsky.com"
+
+// filterEmailFromJira is not usable due to all 'From' is 'unknown@example.com'
+func filterEmailFromJira(mails []mail.Email) []mail.Email {
+	for i := 0; i < len(mails); {
+		if mails[i].From.Address != JIRA_ADDRESS {
+			mails[i] = mails[len(mails)-1]
+			mails = mails[:len(mails)-1]
+		} else {
+			i++
+		}
+	}
+	return mails
+}
+
+const (
+	Jira       string = "JIRA"
+	Gitlab            = "GitLab"
+	Confluence        = "Confluence"
+	Slack             = "Slack"
+)
+
+var emailTypeMap = map[string]string{
+	"[ACTION-JIRA]":       Jira,
+	"Re:":                 Gitlab,
+	"[action-confluence]": Confluence,
+	"[Slack]":             Slack,
+}
+var MailBriefTimeFormat = "2006-01-02 15:04:05"
+
+func ExtractEmailUsefulInfo(m *mail.Email, bm *MailBrief) {
+	for k, v := range emailTypeMap {
+		if strings.Contains(m.Subject, k) {
+			bm.MailType = v
+		}
+	}
+	bm.Time = m.InternalDate.Local().Format(MailBriefTimeFormat)
+	bm.UID = m.UID
+}
+
+type BriefMailFilter func(bm *MailBrief) bool
+
+func (bm *MailBrief) FilterBriefMail(bf BriefMailFilter) bool {
+	return bf(bm)
+}
