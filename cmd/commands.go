@@ -43,8 +43,8 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		lastMonday := util.GetFirstDayOfLastWeek()
 		lastSaturday := util.GetSaturdayOfLastWeek()
 		keyMap := map[string]interface{}{
-			"SINCE":    lastMonday.Format(dateFormat),
-			"BEFORE":   lastSaturday.Format(dateFormat),
+			"SINCE":  lastMonday.Format(dateFormat),
+			"BEFORE": lastSaturday.Format(dateFormat),
 		}
 
 		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
@@ -56,7 +56,6 @@ var getEffectiveTimelineCmd = &cobra.Command{
 			e := email
 			go func() {
 				briefEmail, err := user.ParseEmailV2(e)
-				fmt.Printf("%#v", briefEmail)
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -65,7 +64,12 @@ var getEffectiveTimelineCmd = &cobra.Command{
 			}()
 		}
 		wg.Wait()
-		fmt.Println(briefEmails[0])
+		for i, be := range briefEmails {
+			fmt.Printf("-------------------------------第%d封,共%d封---------------------------------\n", i, len(emails))
+			fmt.Printf("%#v\n", be)
+
+		}
+		fmt.Println("--------------------------------------------------------------------")
 	},
 }
 
@@ -95,6 +99,9 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "This is the command used for testing",
 	Run: func(cmd *cobra.Command, args []string) {
-
+		c := ``
+		b := &user.MailBrief{}
+		op := user.ExtractOperator()
+		fmt.Printf("%#v", op(b, []byte(c)))
 	},
 }
