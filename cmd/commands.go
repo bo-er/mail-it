@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	netMail "net/mail"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/bo-er/mail-it/mail"
+	"github.com/bo-er/mail-it/models"
 	"github.com/bo-er/mail-it/user"
 	"github.com/bo-er/mail-it/util"
 	"github.com/spf13/cobra"
@@ -41,6 +43,10 @@ var getEffectiveTimelineCmd = &cobra.Command{
 	Long:  `Print the Effective timeline of an issue`,
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
+		store := user.GetRedisStore()
+		if store == nil {
+			fmt.Fprintf(os.Stderr, "failed to get db")
+		}
 		lastMonday := util.GetFirstDayOfLastWeek()
 		lastSaturday := util.GetSaturdayOfLastWeek()
 		// keyMap := map[string]interface{}{
@@ -50,7 +56,7 @@ var getEffectiveTimelineCmd = &cobra.Command{
 
 		emails, _ := mail.GetWithKeyMap(mailboxInfo, nil, false, false)
 		var wg sync.WaitGroup
-		var briefEmails []*user.MailBrief
+		var briefEmails []*models.MailBrief
 		wg.Add(len(emails))
 		for _, email := range emails {
 			e := email
@@ -67,11 +73,11 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		}
 		wg.Wait()
 		lastWeekWorks := map[string]string{}
-		for _, bm := range briefEmails {
-			if _, exists := lastWeekWorks[bm.IssueID]; exists {
+		for _, mb := range briefEmails {
+			if _, exists := lastWeekWorks[mb.IssueID]; exists {
 				continue
 			}
-			if bm.FilterBriefMail(func(m *user.MailBrief) bool {
+			if mb.FilterBriefMail(func(m *models.MailBrief) bool {
 				// 判断是自己的任务
 				if m.Assignee != mailboxInfo.Username {
 					return false
@@ -80,16 +86,21 @@ var getEffectiveTimelineCmd = &cobra.Command{
 				receiveTime, _ := time.ParseInLocation(user.MailBriefTimeFormat, m.Time, local)
 				return receiveTime.After(lastMonday) && receiveTime.Before(lastSaturday)
 			}) {
-				lastWeekWorks[bm.IssueID] = bm.Link
+				store.Set(mb.IssueID, *mb)
+				lastWeekWorks[mb.IssueID] = mb.Link
+				result, _ := store.Get(mb.IssueID, "Reporter")
+				fmt.Printf("%#v\n", result...)
+
 			}
 
 		}
+
 		counter := 1
 		for _, link := range lastWeekWorks {
 			fmt.Printf("%d.%s\n", counter, link)
-			fmt.Printf("%#v\n", lastWeekWorks)
 			counter++
 		}
+
 	},
 }
 

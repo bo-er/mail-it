@@ -74,6 +74,10 @@ func init() {
 
 }
 
+func initRedis(){
+	
+}
+
 func initConfig() {
 	content, err := ioutil.ReadFile(configFile)
 	if err != nil {

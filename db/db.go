@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bo-er/mail-it/user"
+	"github.com/bo-er/mail-it/models"
 	"github.com/go-redis/redis"
 )
 
@@ -20,7 +20,7 @@ func NewRedisStore(addr, password string, db int) *RedisStore {
 		fmt.Fprintf(os.Stdout, "redis client is using empty password")
 	}
 	if db == 0 {
-		fmt.Fprintf("redis client is using default database")
+		fmt.Fprintf(os.Stdout, "redis client is using default database")
 	}
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     addr,
@@ -33,12 +33,19 @@ func NewRedisStore(addr, password string, db int) *RedisStore {
 }
 
 type EmailStore interface {
-	Set(key string, bm user.MailBrief) error
-	Get(key string, bm user.MailBrief) error
+	Set(key string, mb models.MailBrief) error
+	Get(key string, fileds ...string) ([]interface{}, error)
+	LPush(key string, mbs []models.MailBrief) (int64, error)
+	LPop(key string)
 }
 
-func (rs *RedisStore) Set(key string, bm *user.MailBrief) error {
-
-	_, err := rs.client.HMSet(key, bm.MapFormat()).Result()
+func (rs *RedisStore) Set(key string, mb models.MailBrief) error {
+	_, err := rs.client.HMSet(key, mb.MapFormat()).Result()
 	return err
+}
+
+func (rs *RedisStore) Get(key string, fileds ...string) ([]interface{}, error) {
+	results, err := rs.client.HMGet(key, fileds...).Result()
+	return results, err
+
 }

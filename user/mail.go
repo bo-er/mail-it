@@ -7,45 +7,20 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/bo-er/mail-it/db"
 	"github.com/bo-er/mail-it/mail"
+	"github.com/bo-er/mail-it/models"
 )
 
 var chineseReg = regexp.MustCompile("[^\u4e00-\u9fa5]")
+var redisRtore *db.RedisStore
 
-type MailBrief struct {
-	Operator  string
-	IssueID   string
-	Link      string
-	Project   string
-	IssueType string
-	Assignee  string
-	Reporter  string
-	Tag       string
-	Version   string
-	BriefBody string
-	Time      string
-	//MailType 邮件的类型 "JIRA"表示来自jira, "Slack"表示来自slack的消息, "Confluence"表示来自confluence上的文档变更,"GitLab"表示来自gitlab
-	MailType string
-	UID      uint32
+func init() {
+	redisRtore = db.NewRedisStore("", "", 0)
 }
 
-func (bm *MailBrief) MapFormat() (m map[string]interface{}) {
-	m = map[string]interface{}{
-		"Operator":  bm.Operator,
-		"IssueID":   bm.IssueID,
-		"Link":      bm.Link,
-		"Project":   bm.Project,
-		"IssueType": bm.IssueType,
-		"Assignee":  bm.Assignee,
-		"Reporter":  bm.Reporter,
-		"Tag":       bm.Tag,
-		"Version":   bm.Version,
-		"BriefBody": bm.BriefBody,
-		"Time":      bm.Time,
-		"MailType":  bm.MailType,
-		"UID":       bm.UID,
-	}
-	return m
+func GetRedisStore() db.EmailStore {
+	return redisRtore
 }
 
 // FindEmailContent finds a content from an email body with given regexp
@@ -53,8 +28,8 @@ func FindEmailContent(body []byte, reg *regexp.Regexp) (matchResult string, err 
 	return string(reg.Find(body)), nil
 }
 
-func GenerateBriefEmail(m mail.Email, opts ...Extract) (*MailBrief, error) {
-	b := &MailBrief{}
+func GenerateBriefEmail(m mail.Email, opts ...Extract) (*models.MailBrief, error) {
+	b := &models.MailBrief{}
 	bsArray, err := m.VisibleText()
 	if err != nil {
 		return b, err
@@ -68,12 +43,12 @@ func GenerateBriefEmail(m mail.Email, opts ...Extract) (*MailBrief, error) {
 }
 
 // Extract a type of function that extracts information from content
-// and set that piece of information into MailBrief
+// and set that piece of information into models.MailBrief
 // It's used only for parsing jira emails!
-type Extract func(mb *MailBrief, mailBody []byte) *MailBrief
+type Extract func(mb *models.MailBrief, mailBody []byte) *models.MailBrief
 
 func ExtractOperator() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -92,7 +67,7 @@ func ExtractOperator() Extract {
 }
 
 func ExtractIssueIDAndProject() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -114,7 +89,7 @@ func ExtractIssueIDAndProject() Extract {
 }
 
 func ExtractLink() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -134,7 +109,7 @@ func ExtractLink() Extract {
 }
 
 func ExtractAssignee() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -154,7 +129,7 @@ func ExtractAssignee() Extract {
 }
 
 func ExtractVersion() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -174,7 +149,7 @@ func ExtractVersion() Extract {
 }
 
 func ExtractReporter() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -194,7 +169,7 @@ func ExtractReporter() Extract {
 }
 
 func ExtractIssueType() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -214,7 +189,7 @@ func ExtractIssueType() Extract {
 }
 
 func ExtractTag() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -234,7 +209,7 @@ func ExtractTag() Extract {
 }
 
 func ExtractEffectiveBody() Extract {
-	return func(mb *MailBrief, mailBody []byte) *MailBrief {
+	return func(mb *models.MailBrief, mailBody []byte) *models.MailBrief {
 		if mb.MailType != Jira {
 			return mb
 		}
@@ -265,7 +240,7 @@ func trimLineWithGreaterPrefix(bs []byte) []byte {
 	return bytes.TrimSpace(trimedBytes[:firstGreaterSignIndex])
 }
 
-func ParseEmail(m mail.Email) (mailBrief *MailBrief, err error) {
+func ParseEmail(m mail.Email) (mb *models.MailBrief, err error) {
 	return GenerateBriefEmail(m,
 		ExtractAssignee(),
 		ExtractIssueIDAndProject(),
@@ -308,7 +283,7 @@ var emailTypeMap = map[string]string{
 }
 var MailBriefTimeFormat = "2006-01-02 15:04:05"
 
-func ExtractEmailUsefulInfo(m *mail.Email, bm *MailBrief) {
+func ExtractEmailUsefulInfo(m *mail.Email, bm *models.MailBrief) {
 	for k, v := range emailTypeMap {
 		if strings.Contains(m.Subject, k) {
 			bm.MailType = v
@@ -318,8 +293,6 @@ func ExtractEmailUsefulInfo(m *mail.Email, bm *MailBrief) {
 	bm.UID = m.UID
 }
 
-type BriefMailFilter func(bm *MailBrief) bool
+func SaveIssueFullMailBriefs(s db.EmailStore, mbs []*models.MailBrief) {
 
-func (bm *MailBrief) FilterBriefMail(bf BriefMailFilter) bool {
-	return bf(bm)
 }
