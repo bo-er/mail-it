@@ -29,6 +29,25 @@ type MailBrief struct {
 	UID      uint32
 }
 
+func (bm *MailBrief) MapFormat() (m map[string]interface{}) {
+	m = map[string]interface{}{
+		"Operator":  bm.Operator,
+		"IssueID":   bm.IssueID,
+		"Link":      bm.Link,
+		"Project":   bm.Project,
+		"IssueType": bm.IssueType,
+		"Assignee":  bm.Assignee,
+		"Reporter":  bm.Reporter,
+		"Tag":       bm.Tag,
+		"Version":   bm.Version,
+		"BriefBody": bm.BriefBody,
+		"Time":      bm.Time,
+		"MailType":  bm.MailType,
+		"UID":       bm.UID,
+	}
+	return m
+}
+
 // FindEmailContent finds a content from an email body with given regexp
 func FindEmailContent(body []byte, reg *regexp.Regexp) (matchResult string, err error) {
 	return string(reg.Find(body)), nil

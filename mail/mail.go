@@ -7,11 +7,11 @@ import (
 	"net/smtp"
 )
 
-func Setup(from, to string) string {
+func Setup(from, to, sender string) string {
 	headers := make(map[string]string)
 	headers["From"] = from
 	headers["To"] = to
-	headers["Subject"] = "Hello!"
+	headers["Subject"] = fmt.Sprintf("您收到了一条来自 %s 的消息", sender)
 	body := "来自于email-it的消息: "
 	message := ""
 	for k, v := range headers {

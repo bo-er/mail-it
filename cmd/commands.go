@@ -87,6 +87,7 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		counter := 1
 		for _, link := range lastWeekWorks {
 			fmt.Printf("%d.%s\n", counter, link)
+			fmt.Printf("%#v\n", lastWeekWorks)
 			counter++
 		}
 	},
@@ -101,7 +102,7 @@ var sendEmailCmd = &cobra.Command{
 		initConfig()
 		from := netMail.Address{Name: "", Address: mailboxInfo.User}
 		sendto := netMail.Address{Name: "", Address: to}
-		message := mail.Setup(from.Address, sendto.Address)
+		message := mail.Setup(from.Address, sendto.Address, mailboxInfo.Username)
 		message += emailBody
 		client, err := mail.Connect(mailboxInfo.User, password)
 		if err != nil {
