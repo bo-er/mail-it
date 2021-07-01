@@ -5,6 +5,7 @@ import (
 	"log"
 	netMail "net/mail"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -55,6 +56,7 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		// }
 
 		emails, _ := mail.GetWithKeyMap(mailboxInfo, nil, false, false)
+		fmt.Printf("收到了%d封新邮件\n", len(emails))
 		var wg sync.WaitGroup
 		var briefEmails []*models.MailBrief
 		wg.Add(len(emails))
@@ -73,7 +75,13 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		}
 		wg.Wait()
 		lastWeekWorks := map[string]string{}
+		_ = user.SaveEmails(store, briefEmails)
 		for _, mb := range briefEmails {
+			var mailID = strconv.FormatUint(uint64(mb.UID), 10)
+			err := store.Set(mailID, *mb)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err.Error())
+			}
 			if _, exists := lastWeekWorks[mb.IssueID]; exists {
 				continue
 			}
@@ -86,7 +94,7 @@ var getEffectiveTimelineCmd = &cobra.Command{
 				receiveTime, _ := time.ParseInLocation(user.MailBriefTimeFormat, m.Time, local)
 				return receiveTime.After(lastMonday) && receiveTime.Before(lastSaturday)
 			}) {
-				store.Set(mb.IssueID, *mb)
+
 				lastWeekWorks[mb.IssueID] = mb.Link
 				result, _ := store.Get(mb.IssueID, "Reporter")
 				fmt.Printf("%#v\n", result...)
@@ -94,7 +102,11 @@ var getEffectiveTimelineCmd = &cobra.Command{
 			}
 
 		}
-
+		// results, err := store.LGetAll("DMP-7566")
+		// if err != nil {
+		// 	fmt.Fprintf(os.Stderr, err.Error())
+		// }
+		// fmt.Println(results)
 		counter := 1
 		for _, link := range lastWeekWorks {
 			fmt.Printf("%d.%s\n", counter, link)
@@ -130,16 +142,31 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "This is the command used for testing",
 	Run: func(cmd *cobra.Command, args []string) {
-		initConfig()
-		lastMonday := util.GetFirstDayOfLastWeek()
-		lastSaturday := util.GetSaturdayOfLastWeek()
-		keyMap := map[string]interface{}{
-			// "SINCE":  lastMonday.Format(dateFormat),
-			"BEFORE": lastSaturday.Format(dateFormat),
-		}
-		fmt.Printf("SINCE: %s, BEFORE: %s\n", lastMonday.Format(dateFormat), lastSaturday.Format(dateFormat))
-		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
-		fmt.Printf("总共的邮件数量:%d\n", len(emails))
+		// initConfig()
+		// lastMonday := util.GetFirstDayOfLastWeek()
+		// lastSaturday := util.GetSaturdayOfLastWeek()
+		// keyMap := map[string]interface{}{
+		// 	// "SINCE":  lastMonday.Format(dateFormat),
+		// 	"BEFORE": lastSaturday.Format(dateFormat),
+		// }
+		// fmt.Printf("SINCE: %s, BEFORE: %s\n", lastMonday.Format(dateFormat), lastSaturday.Format(dateFormat))
+		// emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
+		// fmt.Printf("总共的邮件数量:%d\n", len(emails))
 
+		// store := user.GetRedisStore()
+		// if store == nil {
+		// 	fmt.Fprintf(os.Stderr, "failed to get db")
+		// }
+		// resuls, err := store.Get("472", "Assignee", "Project")
+		// if err != nil {
+		// 	fmt.Println(err)
+		// }
+		// fmt.Println(resuls...)
+		store := user.GetRedisStore()
+		if store == nil {
+			fmt.Fprintf(os.Stderr, "failed to get db")
+		}
+		results, _ := user.GetEmailWithDescTimeline(store, "DMP-7566")
+		user.PrintEmailWithTimeline(store, results)
 	},
 }

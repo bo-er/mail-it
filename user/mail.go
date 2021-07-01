@@ -2,6 +2,7 @@ package user
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -293,6 +294,46 @@ func ExtractEmailUsefulInfo(m *mail.Email, bm *models.MailBrief) {
 	bm.UID = m.UID
 }
 
-func SaveIssueFullMailBriefs(s db.EmailStore, mbs []*models.MailBrief) {
+func SaveEmails(s db.EmailStore, mbs []*models.MailBrief) error {
+	var errs []error
+	for _, mb := range mbs {
+		if mb.IssueID != "" {
+			fmt.Println(mb.IssueID, mb.UID)
+			result, err := s.LPush(mb.IssueID, mb.UID)
+			if err != nil {
+				fmt.Println(err)
+				errs = append(errs, err)
+			}
+			fmt.Println(result)
+		}
 
+	}
+	if len(errs) > 0 {
+		fmt.Println(errs)
+	}
+	return errors.New("err. Something unexpected happend during emails saving")
+}
+
+func GetEmailWithDescTimeline(s db.EmailStore, issueID string) ([]string, error) {
+	return s.SimpleSort(issueID, "desc")
+}
+
+func GetEmailWithTimeline(s db.EmailStore, issueID string) ([]string, error) {
+	return s.SimpleSort(issueID, "desc")
+}
+
+func PrintEmailWithTimeline(s db.EmailStore, uids []string) error {
+	for _, uid := range uids {
+		bb, err := s.Get(uid, "BriefBody")
+		if err != nil {
+			return err
+		}
+		time, err := s.Get(uid, "Time")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("------------------%s---------------------\n\n", time)
+		fmt.Printf("%s\n\n", bb)
+	}
+	return nil
 }
