@@ -163,7 +163,7 @@ func GetWithKeyMap(info MailboxInfo, keyMap map[string]interface{}, markAsRead, 
 		}
 		emails = append(emails, resp.Email)
 	}
-	fmt.Fprintf(os.Stdout,"we get %d emails\n",len(emails))
+	fmt.Fprintf(os.Stdout, "we get %d emails\n", len(emails))
 	return emails, nil
 }
 
@@ -250,8 +250,6 @@ func ValidateMailboxInfo(info MailboxInfo) error {
 	}()
 	return err
 }
-
-
 
 func VisibleText(body io.Reader) ([][]byte, error) {
 	var (
@@ -370,9 +368,11 @@ func findEmails(client *imap.Client, search string, keyMap map[string]interface{
 	}
 	for k, v := range keyMap {
 		if _, ok := allowedKeys[k]; ok {
+			fmt.Println("放入时间参数")
 			specs = append(specs, k, v)
 		}
 	}
+	fmt.Println(specs)
 	// get headers and UID for UnSeen message in src inbox...
 	cmd, err := imap.Wait(client.UIDSearch(specs...))
 	if err != nil {

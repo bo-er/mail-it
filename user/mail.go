@@ -4,21 +4,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/bo-er/mail-it/db"
 	"github.com/bo-er/mail-it/mail"
 	"github.com/bo-er/mail-it/models"
 )
 
-var chineseReg = regexp.MustCompile("[^\u4e00-\u9fa5]")
 var redisRtore *db.RedisStore
-
-func init() {
-	redisRtore = db.NewRedisStore("", "", 0)
-}
 
 func GetRedisStore() db.EmailStore {
 	return redisRtore
@@ -43,6 +40,56 @@ func GenerateBriefEmail(m mail.Email, opts ...Extract) (*models.MailBrief, error
 	return b, nil
 }
 
+var once sync.Once
+var regexpMap map[string]*regexp.Regexp
+
+func init() {
+	once.Do(
+		func() {
+			redisRtore = db.NewRedisStore("", "", 0)
+			preCompileRegex()
+		})
+}
+
+func preCompileRegex() {
+	var regexMap = map[string]string{
+		OperatorKey:          `(]\s*)?(.*:)(\s*---)`,
+		IssueIDAndProjectKey: `>(\s+)键值:\s.*\s`,
+		LinkKey:              `>(\s+)网址:\s.*\s`,
+		AssigneeKey:          `>(\s+)经办人:\s.*\s`,
+		VersionKey:           `>(\s+)修复:\s.*\s`,
+		ReporterKey:          `>(\s+)报告人:\s.*\s`,
+		IssueTypeKey:         `>(\s+)问题类型:\s.*\s`,
+		TagKey:               `>(\s+)标签:\s.*\s`,
+		EffectiveBodyKey:     `(---)+([\s\S]*)>\s(---)+`,
+		Gitlab:               `(gitlab 在\s.*中留言:)|(gitlab\s更新了\s.*:)`,
+		ChineseRegKey:        "[^\u4e00-\u9fa5]",
+	}
+	regexpMap = make(map[string]*regexp.Regexp, len(regexMap))
+	for field, regexString := range regexMap {
+		regexpMap[field] = regexp.MustCompile(regexString)
+	}
+}
+
+const (
+	OperatorKey          = "Operator"
+	IssueIDAndProjectKey = "IssueIDAndProject"
+	LinkKey              = "Link"
+	AssigneeKey          = "Asignee"
+	VersionKey           = "Version"
+	ReporterKey          = "Reporter"
+	IssueTypeKey         = "IssueType"
+	TagKey               = "Tag"
+	EffectiveBodyKey     = "EffectiveBody"
+	GitlabKey            = "Gitlab"
+	ChineseRegKey        = "ChineseReg"
+)
+
+const (
+	JIRA_ADDRESS        = "rdreport@actionsky.com"
+	OPERATIONAL_KEYWORD = "于在更对"
+)
+
 // Extract a type of function that extracts information from content
 // and set that piece of information into models.MailBrief
 // It's used only for parsing jira emails!
@@ -53,16 +100,28 @@ func ExtractOperator() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `]([\s\S]*)-+`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[OperatorKey]
+		match := regexp.FindStringSubmatch(string(mailBody))
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we don't find a operator\n")
+			fmt.Fprintf(os.Stderr, "we don't find a operator.UID is: %d\n", mb.UID)
 			return mb
 		}
-		trimedMatch := bytes.TrimSpace(match)
-
-		mb.Operator = extractChienes(chineseReg, match[:bytes.Index(trimedMatch, []byte{' '})])
+		operationString := match[2]
+		operationIndex := strings.IndexAny(operationString, OPERATIONAL_KEYWORD)
+		if operationIndex == -1 {
+			fmt.Println("0 is: ",match[0],"1 is: ",match[1],"2 is: ",match[2])
+			return mb
+		}
+		mb.Operator = strings.TrimSpace(operationString[:operationIndex])
+		if mb.Operator == "" {
+			gitlabRegex := regexpMap[Gitlab]
+			gitlabMatch := gitlabRegex.Find([]byte(operationString))
+			if gitlabMatch == nil {
+				log.Printf("make sure to check out who is the operator!.UID is: %d\n\n", mb.UID)
+				return mb
+			}
+			mb.Operator = string(gitlabMatch[:6])
+		}
 		return mb
 	}
 }
@@ -72,11 +131,10 @@ func ExtractIssueIDAndProject() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)键值:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[IssueIDAndProjectKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an issueID\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an issueID.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -94,11 +152,10 @@ func ExtractLink() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)网址:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[LinkKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an web address\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an web address.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -114,11 +171,10 @@ func ExtractAssignee() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)经办人:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[AssigneeKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an assignee\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an assignee.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -134,11 +190,10 @@ func ExtractVersion() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)修复:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[VersionKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an version\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an version.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -154,11 +209,10 @@ func ExtractReporter() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)报告人:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[ReporterKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an reporter\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an reporter.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -174,11 +228,10 @@ func ExtractIssueType() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)问题类型:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regex := regexpMap[IssueTypeKey]
+		match := regex.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an issue type\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an issue type.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -194,11 +247,10 @@ func ExtractTag() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `>(\s+)标签:\s.*\s`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[TagKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an tag\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an tag.UID is: %d\n", mb.UID)
 			return mb
 		}
 		target := trimBytesPrefix(match)
@@ -214,11 +266,10 @@ func ExtractEffectiveBody() Extract {
 		if mb.MailType != Jira {
 			return mb
 		}
-		regexString := `(---)+([\s\S]*)>\s(---)+`
-		compiledRegxp := regexp.MustCompile(regexString)
-		match := compiledRegxp.Find(mailBody)
+		regexp := regexpMap[EffectiveBodyKey]
+		match := regexp.Find(mailBody)
 		if match == nil {
-			fmt.Fprintf(os.Stderr, "we didn't find an effective body\n")
+			fmt.Fprintf(os.Stderr, "we didn't find an effective body.UID is: %d\n", mb.UID)
 			return mb
 		}
 
@@ -227,12 +278,17 @@ func ExtractEffectiveBody() Extract {
 	}
 }
 
-func extractChienes(r *regexp.Regexp, content []byte) string {
+func extractChinese(r *regexp.Regexp, content []byte) string {
 	return r.ReplaceAllString(string(content), "")
 }
 
 func trimBytesPrefix(bs []byte) []byte {
 	return bytes.TrimSpace(bytes.Trim(bs, ">- "))
+}
+
+// trimBytesPrefixV2 is used to extract Chinese operator
+func trimBytesPrefixV2(bs []byte) []byte {
+	return bytes.TrimSpace(bytes.Trim(bs, "]-"))
 }
 
 func trimLineWithGreaterPrefix(bs []byte) []byte {
@@ -253,8 +309,6 @@ func ParseEmail(m mail.Email) (mb *models.MailBrief, err error) {
 		ExtractEffectiveBody())
 
 }
-
-const JIRA_ADDRESS = "rdreport@actionsky.com"
 
 // filterEmailFromJira is not usable due to all 'From' is 'unknown@example.com'
 func filterEmailFromJira(mails []mail.Email) []mail.Email {

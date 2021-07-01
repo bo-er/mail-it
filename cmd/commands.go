@@ -142,16 +142,16 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "This is the command used for testing",
 	Run: func(cmd *cobra.Command, args []string) {
-		// initConfig()
-		// lastMonday := util.GetFirstDayOfLastWeek()
-		// lastSaturday := util.GetSaturdayOfLastWeek()
-		// keyMap := map[string]interface{}{
-		// 	// "SINCE":  lastMonday.Format(dateFormat),
-		// 	"BEFORE": lastSaturday.Format(dateFormat),
-		// }
-		// fmt.Printf("SINCE: %s, BEFORE: %s\n", lastMonday.Format(dateFormat), lastSaturday.Format(dateFormat))
-		// emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
-		// fmt.Printf("总共的邮件数量:%d\n", len(emails))
+		initConfig()
+		lastMonday := util.GetFirstDayOfLastWeek()
+		lastSaturday := util.GetSaturdayOfLastWeek()
+		keyMap := map[string]interface{}{
+			"SINCE": "2021-06-30",
+			// "BEFORE": lastSaturday.Format(dateFormat),
+		}
+		fmt.Printf("SINCE: %s, BEFORE: %s\n", lastMonday.Format(dateFormat), lastSaturday.Format(dateFormat))
+		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
+		fmt.Printf("总共的邮件数量:%d\n", len(emails))
 
 		// store := user.GetRedisStore()
 		// if store == nil {
@@ -162,11 +162,14 @@ var testCmd = &cobra.Command{
 		// 	fmt.Println(err)
 		// }
 		// fmt.Println(resuls...)
-		store := user.GetRedisStore()
-		if store == nil {
-			fmt.Fprintf(os.Stderr, "failed to get db")
-		}
-		results, _ := user.GetEmailWithDescTimeline(store, "DMP-7566")
-		user.PrintEmailWithTimeline(store, results)
+
+
+
+		// store := user.GetRedisStore()
+		// if store == nil {
+		// 	fmt.Fprintf(os.Stderr, "failed to get db")
+		// }
+		// results, _ := user.GetEmailWithDescTimeline(store, "DMP-7566")
+		// user.PrintEmailWithTimeline(store, results)
 	},
 }
