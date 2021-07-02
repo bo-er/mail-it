@@ -110,7 +110,6 @@ func ExtractOperator() Extract {
 		operationString := match[2]
 		operationIndex := strings.IndexAny(operationString, OPERATIONAL_KEYWORD)
 		if operationIndex == -1 {
-			fmt.Println("0 is: ", match[0], "1 is: ", match[1], "2 is: ", match[2])
 			return mb
 		}
 		mb.Operator = strings.TrimSpace(operationString[:operationIndex])
@@ -197,10 +196,6 @@ func ExtractVersion() Extract {
 			fmt.Fprintf(os.Stderr, "we didn't find an version.UID is: %d\n", mb.UID)
 			return mb
 		}
-		fmt.Println("version[0] is", match[0])
-		fmt.Println("version[1] is", match[1])
-		fmt.Println("version[2] is", match[2])
-		fmt.Println("------------------------------------------")
 		mb.Version = match[2]
 		return mb
 	}
@@ -356,7 +351,6 @@ func SaveEmails(s db.EmailStore, mbs []*models.MailBrief) error {
 	var errs []error
 	for _, mb := range mbs {
 		if mb.IssueID != "" {
-			fmt.Println(mb.IssueID, mb.UID)
 			_, err := s.LPush(mb.IssueID, mb.UID)
 
 			if err != nil {
@@ -401,8 +395,6 @@ func PrintEmailWithTimeline(s db.EmailStore, uids []string) error {
 	return nil
 }
 
-
-
 func SendEventsLoop(exit, event chan struct{}) {
 
 	for {
@@ -415,33 +407,33 @@ func SendEventsLoop(exit, event chan struct{}) {
 	}
 }
 
-func RetriveEmailsLoop(exit, event chan struct{}) {
+func RetriveEmailsLoop(exit, event chan struct{}, mailboxInfo mail.MailboxInfo, store db.EmailStore) {
 	for {
 		select {
 		case <-exit:
 			return
 		case <-event:
-
+			RetrieveEmails(mailboxInfo, store)
 		}
 	}
 }
 
-func RetrieveEmails(mailboxInfo mail.MailboxInfo, store *db.RedisStore) {
+func RetrieveEmails(mailboxInfo mail.MailboxInfo, store db.EmailStore) {
 	emails, _ := mail.GetWithKeyMap(mailboxInfo, nil, true, false)
 	var wg sync.WaitGroup
 	var briefEmails []*models.MailBrief
 	wg.Add(len(emails))
 	unread := make([]uint32, 0)
 	for _, email := range emails {
-		go func(mail.Email) {
-			briefEmail, err := ParseEmail(email)
+		go func(e mail.Email) {
+			briefEmail, err := ParseEmail(e)
 			if err != nil {
 				fmt.Println(err)
 			}
 			if briefEmail.MailType == Jira {
 				briefEmails = append(briefEmails, briefEmail)
 			} else {
-				unread = append(unread, email.UID)
+				unread = append(unread, e.UID)
 			}
 			wg.Done()
 		}(email)

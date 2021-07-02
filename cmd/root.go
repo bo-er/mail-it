@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -29,14 +30,20 @@ var (
 		Short: "A command for starting your email service",
 		Long:  `This command is used for Starting your email service.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			initConfig()
+			store := user.GetRedisStore()
+			if store == nil {
+				fmt.Fprintf(os.Stderr, "failed to get db")
+			}
 			var eventExit = make(chan struct{}, 1)
 			var retriveEmailExit = make(chan struct{}, 1)
 			var event = make(chan struct{}, 1)
 			go user.SendEventsLoop(eventExit, event)
-			go user.RetriveEmailsLoop(retriveEmailExit, event)
+			go user.RetriveEmailsLoop(retriveEmailExit, event, mailboxInfo, store)
 			exit := make(chan os.Signal, 1)
-			signal.Notify(exit, os.Kill, os.Interrupt)
+			signal.Notify(exit, os.Interrupt)
 			<-exit
+			fmt.Println("收到停止信号,正在退出...")
 			shutDown(eventExit, retriveEmailExit)
 		},
 	}
