@@ -76,7 +76,6 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		lastWeekWorks := map[string]string{}
 		_ = user.SaveEmails(store, briefEmails)
 
-
 		for _, mb := range briefEmails {
 			var mailID = strconv.FormatUint(uint64(mb.UID), 10)
 			err := store.Set(mailID, *mb)
@@ -144,15 +143,15 @@ var testCmd = &cobra.Command{
 	Short: "This is the command used for testing",
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
-		lastMonday := util.GetFirstDayOfLastWeek()
-		lastSaturday := util.GetSaturdayOfLastWeek()
-		keyMap := map[string]interface{}{
-			"SINCE": "2021-06-30",
-			// "BEFORE": lastSaturday.Format(dateFormat),
-		}
-		fmt.Printf("SINCE: %s, BEFORE: %s\n", lastMonday.Format(dateFormat), lastSaturday.Format(dateFormat))
-		emails, _ := mail.GetWithKeyMap(mailboxInfo, keyMap, false, false)
-		fmt.Printf("总共的邮件数量:%d\n", len(emails))
+		// lastMonday := util.GetFirstDayOfLastWeek()
+		// lastSaturday := util.GetSaturdayOfLastWeek()
+		// keyMap := map[string]interface{}{
+		// 	// "SINCE": time.Date(2021, 06, 01, 0, 0, 0, 0, time.Local).Format(mail.DateFormat),
+		// 	"BEFORE": time.Now().Format(dateFormat),
+		// }
+
+		emails, err := mail.GetSince(mailboxInfo, time.Now(), false, false)
+		fmt.Printf("总共的邮件数量:%d\n,出现错误: %v\n", len(emails), err)
 
 		// store := user.GetRedisStore()
 		// if store == nil {
@@ -163,8 +162,6 @@ var testCmd = &cobra.Command{
 		// 	fmt.Println(err)
 		// }
 		// fmt.Println(resuls...)
-
-
 
 		// store := user.GetRedisStore()
 		// if store == nil {

@@ -424,6 +424,7 @@ func RetrieveEmails(mailboxInfo mail.MailboxInfo, store db.EmailStore) {
 	var briefEmails []*models.MailBrief
 	wg.Add(len(emails))
 	unread := make([]uint32, 0)
+	fmt.Printf("邮件总数:%d\n", len(emails))
 	for _, email := range emails {
 		go func(e mail.Email) {
 			briefEmail, err := ParseEmail(e)

@@ -24,7 +24,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-const dateFormat = "02-Jan-2006"
+const DateFormat = "02-Jan-2006"
 
 // MailboxInfo holds onto the credentials and other information
 // needed for connecting to an IMAP server.
@@ -189,7 +189,7 @@ func GetSince(info MailboxInfo, since time.Time, markAsRead, delete bool) ([]Ema
 // responses channel.
 func GenerateSince(info MailboxInfo, since time.Time, markAsRead, delete bool) (chan Response, error) {
 	keyM := map[string]interface{}{
-		"SINCE": since.Format(dateFormat),
+		"SINCE": since.Format(DateFormat),
 	}
 	return generateMail(info, "", keyM, markAsRead, delete)
 }
@@ -361,7 +361,7 @@ func newIMAPClient(info MailboxInfo) (*imap.Client, error) {
 
 // findEmails will run a find the UIDs of any emails that match the search.:
 func findEmails(client *imap.Client, search string, keyMap map[string]interface{}) (*imap.Command, error) {
-
+	fmt.Println(keyMap)
 	var specs []imap.Field
 	if len(search) > 0 {
 		specs = append(specs, search)
@@ -369,10 +369,13 @@ func findEmails(client *imap.Client, search string, keyMap map[string]interface{
 	for k, v := range keyMap {
 		if _, ok := allowedKeys[k]; ok {
 			fmt.Println("放入时间参数")
+			if v == "02-Jul-2021" {
+				v = "28-Jun-2021"
+			}
 			specs = append(specs, k, v)
 		}
 	}
-	fmt.Println(specs)
+	fmt.Println("email的请求参数是:", specs)
 	// get headers and UID for UnSeen message in src inbox...
 	cmd, err := imap.Wait(client.UIDSearch(specs...))
 	if err != nil {
@@ -390,7 +393,6 @@ func generateMail(info MailboxInfo, search string, keyMap map[string]interface{}
 		close(responses)
 		return responses, fmt.Errorf("uid search failed: %s", err)
 	}
-
 	go func() {
 		defer func() {
 			client.Close(true)
@@ -406,9 +408,10 @@ func generateMail(info MailboxInfo, search string, keyMap map[string]interface{}
 			return
 		}
 		// gotta fetch 'em all
-		getEmails(client, cmd, markAsRead, delete, responses)
-	}()
 
+		getEmails(client, cmd, markAsRead, delete, responses)
+
+	}()
 	return responses, nil
 }
 
@@ -421,7 +424,6 @@ func getEmails(client *imap.Client, cmd *imap.Command, markAsRead, delete bool, 
 			seq.AddNum(uid)
 		}
 	}
-
 	// nothing to request?! why you even callin me, foolio?
 	if seq.Empty() {
 		return
@@ -449,16 +451,23 @@ func getEmails(client *imap.Client, cmd *imap.Command, markAsRead, delete bool, 
 		email, err = NewEmail(msgFields)
 		if err != nil {
 			responses <- Response{Err: fmt.Errorf("unable to parse email: %s", err)}
-			return
+			continue
 		}
 
 		responses <- Response{Email: email}
 
-		if !markAsRead {
+		if markAsRead {
+			err = addSeen(client, imap.AsNumber(msgFields["UID"]))
+			if err != nil {
+				responses <- Response{Err: fmt.Errorf("unable to add seen flag: %s", err)}
+				continue
+			}
+
+		} else {
 			err = removeSeen(client, imap.AsNumber(msgFields["UID"]))
 			if err != nil {
 				responses <- Response{Err: fmt.Errorf("unable to remove seen flag: %s", err)}
-				return
+				continue
 			}
 		}
 
@@ -466,11 +475,10 @@ func getEmails(client *imap.Client, cmd *imap.Command, markAsRead, delete bool, 
 			err = deleteEmail(client, imap.AsNumber(msgFields["UID"]))
 			if err != nil {
 				responses <- Response{Err: fmt.Errorf("unable to delete email: %s", err)}
-				return
+				continue
 			}
 		}
 	}
-	return
 }
 
 func deleteEmail(client *imap.Client, UID uint32) error {
@@ -479,6 +487,10 @@ func deleteEmail(client *imap.Client, UID uint32) error {
 
 func removeSeen(client *imap.Client, UID uint32) error {
 	return alterEmail(client, UID, "\\SEEN", false)
+}
+
+func addSeen(client *imap.Client, UID uint32) error {
+	return alterEmail(client, UID, "\\SEEN", true)
 }
 
 func alterEmail(client *imap.Client, UID uint32, flag string, plus bool) error {
