@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bo-er/mail-it/db"
 	"github.com/bo-er/mail-it/mail"
@@ -57,7 +58,7 @@ func preCompileRegex() {
 		IssueIDAndProjectKey: `>(\s+)键值:\s.*\s`,
 		LinkKey:              `>(\s+)网址:\s.*\s`,
 		AssigneeKey:          `>(\s+)经办人:\s.*\s`,
-		VersionKey:           `>(\s+)修复:\s.*\s`,
+		VersionKey:           `(>\s+修复:\s)(([0-9]\.)+[0-9]{1})`,
 		ReporterKey:          `>(\s+)报告人:\s.*\s`,
 		IssueTypeKey:         `>(\s+)问题类型:\s.*\s`,
 		TagKey:               `>(\s+)标签:\s.*\s`,
@@ -109,7 +110,7 @@ func ExtractOperator() Extract {
 		operationString := match[2]
 		operationIndex := strings.IndexAny(operationString, OPERATIONAL_KEYWORD)
 		if operationIndex == -1 {
-			fmt.Println("0 is: ",match[0],"1 is: ",match[1],"2 is: ",match[2])
+			fmt.Println("0 is: ", match[0], "1 is: ", match[1], "2 is: ", match[2])
 			return mb
 		}
 		mb.Operator = strings.TrimSpace(operationString[:operationIndex])
@@ -191,14 +192,16 @@ func ExtractVersion() Extract {
 			return mb
 		}
 		regexp := regexpMap[VersionKey]
-		match := regexp.Find(mailBody)
+		match := regexp.FindStringSubmatch(string(mailBody))
 		if match == nil {
 			fmt.Fprintf(os.Stderr, "we didn't find an version.UID is: %d\n", mb.UID)
 			return mb
 		}
-		target := trimBytesPrefix(match)
-		whiteSpaceIndex := bytes.Index(target, []byte{' '})
-		mb.Version = string(target[whiteSpaceIndex+1:])
+		fmt.Println("version[0] is", match[0])
+		fmt.Println("version[1] is", match[1])
+		fmt.Println("version[2] is", match[2])
+		fmt.Println("------------------------------------------")
+		mb.Version = match[2]
 		return mb
 	}
 
@@ -306,7 +309,8 @@ func ParseEmail(m mail.Email) (mb *models.MailBrief, err error) {
 		ExtractOperator(),
 		ExtractTag(),
 		ExtractReporter(),
-		ExtractEffectiveBody())
+		ExtractEffectiveBody(),
+		ExtractVersion())
 
 }
 
@@ -353,12 +357,17 @@ func SaveEmails(s db.EmailStore, mbs []*models.MailBrief) error {
 	for _, mb := range mbs {
 		if mb.IssueID != "" {
 			fmt.Println(mb.IssueID, mb.UID)
-			result, err := s.LPush(mb.IssueID, mb.UID)
+			_, err := s.LPush(mb.IssueID, mb.UID)
+
 			if err != nil {
 				fmt.Println(err)
 				errs = append(errs, err)
 			}
-			fmt.Println(result)
+			_, err = s.LPush(mb.Time[:10], mb.UID)
+			if err != nil {
+				fmt.Println(err)
+				errs = append(errs, err)
+			}
 		}
 
 	}
@@ -390,4 +399,54 @@ func PrintEmailWithTimeline(s db.EmailStore, uids []string) error {
 		fmt.Printf("%s\n\n", bb)
 	}
 	return nil
+}
+
+
+
+func SendEventsLoop(exit, event chan struct{}) {
+
+	for {
+		select {
+		case <-time.After(time.Second):
+			event <- struct{}{}
+		case <-exit:
+			return
+		}
+	}
+}
+
+func RetriveEmailsLoop(exit, event chan struct{}) {
+	for {
+		select {
+		case <-exit:
+			return
+		case <-event:
+
+		}
+	}
+}
+
+func RetrieveEmails(mailboxInfo mail.MailboxInfo, store *db.RedisStore) {
+	emails, _ := mail.GetWithKeyMap(mailboxInfo, nil, true, false)
+	var wg sync.WaitGroup
+	var briefEmails []*models.MailBrief
+	wg.Add(len(emails))
+	unread := make([]uint32, 0)
+	for _, email := range emails {
+		go func(mail.Email) {
+			briefEmail, err := ParseEmail(email)
+			if err != nil {
+				fmt.Println(err)
+			}
+			if briefEmail.MailType == Jira {
+				briefEmails = append(briefEmails, briefEmail)
+			} else {
+				unread = append(unread, email.UID)
+			}
+			wg.Done()
+		}(email)
+	}
+	wg.Wait()
+	_ = SaveEmails(store, briefEmails)
+	mail.MarkAsUnread(mailboxInfo, unread)
 }

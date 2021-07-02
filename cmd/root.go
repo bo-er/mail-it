@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/bo-er/mail-it/mail"
+	"github.com/bo-er/mail-it/user"
 	"github.com/spf13/cobra"
 )
 
@@ -26,28 +29,15 @@ var (
 		Short: "A command for starting your email service",
 		Long:  `This command is used for Starting your email service.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// start := time.Date(2021, 06, 28, 1, 0, 0, 0, time.UTC)
-			// result, _ := user.GetLastWeekWork(mailboxInfo, start, []string{projectReg})
-			// fmt.Println(result)
-
-			// mails, err := mail.GetUnread(mailboxInfo, false, false)
-			// if err != nil {
-			// 	log.Panic(err)
-			// }
-			// // pr := regexp.MustCompile(projectReg)
-			// cr := regexp.MustCompile(contentReg)
-			// for _, mail := range mails {
-			// 	fmt.Println("---------------------------------------------------")
-			// 	c, _ := mail.VisibleText()
-			// 	content := string(c[0])
-			// 	// pv := pr.Find(c[0])
-			// 	result := cr.Find(c[0])
-			// 	begin := strings.Index(content, string(result))
-			// 	end := strings.Index(content, ">")
-			// 	fmt.Println(strings.Trim(content[begin:end], "-"))
-			// 	fmt.Println("---------------------------------------------------")
-			// }
-
+			var eventExit = make(chan struct{}, 1)
+			var retriveEmailExit = make(chan struct{}, 1)
+			var event = make(chan struct{}, 1)
+			go user.SendEventsLoop(eventExit, event)
+			go user.RetriveEmailsLoop(retriveEmailExit, event)
+			exit := make(chan os.Signal, 1)
+			signal.Notify(exit, os.Kill, os.Interrupt)
+			<-exit
+			shutDown(eventExit, retriveEmailExit)
 		},
 	}
 )
@@ -74,8 +64,8 @@ func init() {
 
 }
 
-func initRedis(){
-	
+func initRedis() {
+
 }
 
 func initConfig() {
@@ -96,5 +86,11 @@ func initConfig() {
 	}
 	if mailboxInfo.User == "" {
 		log.Panic("must provide a username")
+	}
+}
+
+func shutDown(shutdowns ...chan struct{}) {
+	for _, exit := range shutdowns {
+		close(exit)
 	}
 }

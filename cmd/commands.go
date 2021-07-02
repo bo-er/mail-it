@@ -56,7 +56,6 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		// }
 
 		emails, _ := mail.GetWithKeyMap(mailboxInfo, nil, false, false)
-		fmt.Printf("收到了%d封新邮件\n", len(emails))
 		var wg sync.WaitGroup
 		var briefEmails []*models.MailBrief
 		wg.Add(len(emails))
@@ -76,6 +75,8 @@ var getEffectiveTimelineCmd = &cobra.Command{
 		wg.Wait()
 		lastWeekWorks := map[string]string{}
 		_ = user.SaveEmails(store, briefEmails)
+
+
 		for _, mb := range briefEmails {
 			var mailID = strconv.FormatUint(uint64(mb.UID), 10)
 			err := store.Set(mailID, *mb)

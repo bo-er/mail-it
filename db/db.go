@@ -60,7 +60,6 @@ func (rs *RedisStore) LGetAll(key string) ([]string, error) {
 	return rs.client.LRange(key, 0, -1).Result()
 }
 func (rs *RedisStore) FlushDB() error {
-
 	return rs.client.FlushDB().Err()
 }
 
